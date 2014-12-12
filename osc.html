@@ -1,0 +1,476 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        <meta http-equiv="Content-Type" content="text/html;charset=UTF-8">
+        <title>OSC Datadirigent</title>
+
+        <script type="text/javascript">
+        //<![CDATA[
+            window.onload = function()
+            {
+                var eventSource = new EventSource('/sse');
+                var inputdevicelist = document.getElementById("inputdevices");
+                var inputparametertable = document.getElementById("inputparameters");
+                var outputdevicelist = document.getElementById("outputdevices");
+                var outputparametertable = document.getElementById("outputparameters");
+                var createlinkbutton = document.getElementById("createlink");
+                var deletedlinkbutton = document.getElementById("deletelink");
+                var linkslist = document.getElementById("links");
+                var deletedinputdevice = document.getElementById("deleteinput");
+                var deletedoutputdevice = document.getElementById("deleteoutput");
+                
+                createlinkbutton.onclick = function()
+                {
+                    var formselements = document.forms.datadirigent.elements;
+                    var outputdevice = selectedItem(outputdevicelist);
+                    var outputparameter = getCheckedValue(formselements.outputgroup);
+                    var inputdevice = selectedItem(inputdevicelist);
+                    var inputparameter = getCheckedValue(formselements.inputgroup);
+//                    alert(outputdevice + "." + outputparameter + " - " + inputdevice + "." + inputparameter);
+                    if (outputdevice != null && outputparameter != null && inputdevice != null && inputparameter != null)
+                    {
+                        var client = new XMLHttpRequest();
+                        var url = "OSCLink?outputdevice=" + outputdevice + "&outputparameter=" + outputparameter + "&inputdevice=" + inputdevice + "&inputparameter=" + inputparameter;
+                        //alert(url);
+                        client.open("GET", url);
+                        client.send();
+                    }
+                }
+                
+                deletedlinkbutton.onclick = function()
+                {
+                    var link = selectedItem(linkslist);
+                    var client = new XMLHttpRequest();
+                    var data = link.split(',');
+
+                    var url = "OSCLink?action=delete&outputdevice=" + data[0] + "&outputparameter=" + data[1] + "&inputdevice=" + data[2] + "&inputparameter=" + data[3];
+                    //alert(url);
+                    client.open("GET", url);
+                    client.send();
+                }
+                var deleteDevice = function(type, device)
+                {
+                    var client = new XMLHttpRequest();
+                    var url = "Device?action=delete&type=" + type + "&name=" + device;
+                    client.open("GET", url);
+                    client.send();
+                }
+                deletedinputdevice.onclick = function()
+                {
+                    var device = selectedItem(inputdevicelist);
+                    deleteDevice("input", device);
+                }
+                deletedoutputdevice.onclick = function()
+                {
+                    var device = selectedItem(outputdevicelist);
+                    deleteDevice("output", device);
+                }
+                
+                // return the value of the radio button that is checked
+                // return null if none are checked, or
+                // there are no radio buttons
+                var getCheckedValue = function(radioObj)
+                {
+                    if (!radioObj)
+                        return null;
+                    var radioLength = radioObj.length;
+                    if (radioLength == undefined)
+                        if(radioObj.checked)
+                            return radioObj.value;
+                        else
+                            return null;
+                    for (var i = 0; i < radioLength; i++)
+                    {
+                        if(radioObj[i].checked)
+                        {
+                            return radioObj[i].value;
+                        }
+                    }
+                    return null;
+                }
+                
+                var addSelectOption = function(selectElement, text, value)
+                {
+                    var option = document.createElement("option");
+                    if (value === undefined)
+                        value = text;
+                    option.setAttribute("value", value);
+                    var optiontext = document.createTextNode(text);
+                    option.appendChild(optiontext);
+                    selectElement.appendChild(option);
+                }
+                
+                var sliderChangeHandler = function(event)
+                {
+                    var data = event.data.split('\n');
+                    setSliderValue(data[0], data[1], data[2]);
+                }
+                
+                var setSliderValue = function(name, fieldName, value)
+                {
+                    var slider = document.getElementById(fieldName);
+                    if (slider != null)
+                    {
+                        var changehandler = slider.onchange;
+                        slider.onchange = null;
+                        slider.value = value;
+                        slider.onchange = changehandler;
+                    }
+                }            
+                eventSource.addEventListener('sliderchange', sliderChangeHandler, false);
+                var setCanvasValue = function(canvas, value)
+                {
+                    if (canvas != null)
+                    {
+                        var context = canvas.getContext('2d');
+                        context.fillStyle = "white";
+                        context.fillRect(0, 0, 512, 20);
+                        context.fillStyle = "red";
+                        context.fillRect(0, 0, value * 512, 20);
+                    }
+                }
+                var setTableFieldValue = function(deviceName, fieldName, value)
+                {
+                    var canvas = document.getElementById(fieldName);
+                    var outputdevice = selectedItem(outputdevicelist);
+                    if (deviceName === outputdevice) {
+                        setCanvasValue(canvas, value);                        
+                    }
+//                    var slider = document.getElementById(fieldName);
+//                    if (slider != null)
+//                    {
+//                        slider.value = value;
+//                    }
+                }
+                
+                var changeHandler = function(event)
+                {
+                    var data = event.data.split('\n');
+//                    console.log(data);
+                    setTableFieldValue(data[0], data[1], parseFloat(data[2]));
+                }
+                eventSource.addEventListener('change', changeHandler, false);
+                
+                var AddedOutputDeviceHandler = function(event)
+                {
+                    var newDevice = event.data;
+                    addSelectOption(outputdevicelist, newDevice);
+                }
+                eventSource.addEventListener('AddedOutputDevice', AddedOutputDeviceHandler, false);
+                
+                var AddedInputDeviceHandler = function(event)
+                {
+                    var newDevice = event.data;
+                    addSelectOption(inputdevicelist, newDevice);
+                }
+                eventSource.addEventListener('AddedInputDevice', AddedInputDeviceHandler, false);
+                
+                var linkValue = function(outputdevice, outputparameter, inputdevice, inputparameter)
+                {
+                    return outputdevice + "," + outputparameter + "," + inputdevice + "," + inputparameter;
+                }
+                var linkText = function(outputdevice, outputparameter, inputdevice, inputparameter)
+                {
+                    return outputdevice + "." + outputparameter + " - " + inputdevice + "." + inputparameter;
+                }
+                var AddedLinkHandler = function(event)
+                {
+                    var data = event.data.split('\n');
+                    var value = linkValue(data[0], data[1], data[2], data[3]);
+                    var text = linkText(data[0], data[1], data[2], data[3]);
+                    addSelectOption(linkslist, text, value);                    
+                }
+                eventSource.addEventListener('AddedLink', AddedLinkHandler, false);
+                
+                var removeSelectOption = function(elSel, value)
+                {
+                    var i;
+                    for (i = elSel.length - 1; i >= 0; i--)
+                    {
+                        if (elSel.options[i].value === value)
+                        {
+                            elSel.remove(i);
+                        }
+                    }
+                }
+                
+                var DeletedLinkHandler = function(event)
+                {
+                    var data = event.data.split('\n');
+                    var value = linkValue(data[0], data[1], data[2], data[3]);
+                    removeSelectOption(linkslist, value);                    
+                }
+                eventSource.addEventListener('DeletedLink', DeletedLinkHandler, false);
+                
+                var deleteParameterTbody = function(devicelist)
+                {
+                    var tbody = devicelist.firstChild;
+                    tbody.parentNode.removeChild(tbody);
+                }
+                
+                var DeletedOutputDeviceHandler = function(event)
+                {
+                    var device = event.data;                    
+                    if (device === selectedItem(outputdevicelist))
+                    {
+                        deleteParameterTbody(outputparametertable);
+                    }
+                    removeSelectOption(outputdevicelist, device);
+                }
+                eventSource.addEventListener('DeletedOutputDevice', DeletedOutputDeviceHandler, false);
+                
+                var DeletedInputDeviceHandler = function(event)
+                {
+                    var device = event.data;
+                    if (device === selectedItem(inputdevicelist))
+                    {
+                        deleteParameterTbody(inputparametertable);
+                    }
+                    removeSelectOption(inputdevicelist, device);
+                }
+                
+                eventSource.addEventListener('DeletedInputDevice', DeletedInputDeviceHandler, false);
+                
+                var initparametertable = function(parametertable)
+                {
+                    if (parametertable.hasChildNodes())
+                    {
+                        // remove previous tbody
+                        deleteParameterTbody(parametertable);
+                    }
+                    // (re)create tbody
+                    var tbody = document.createElement("tbody");
+                    parametertable.appendChild(tbody);
+                    return tbody;
+                }
+                var selectedItem = function(selectElement)
+                {
+                    var index = selectElement.selectedIndex;
+                    return index == -1 ? null : selectElement.options[index].value; 
+                }
+                
+                var getDeviceName = function(event)
+                {
+                    return selectedItem(event.currentTarget);
+                }
+                
+                var createRadioButton = function(groupname, value)
+                {
+                    var input = document.createElement("input");
+                    input.setAttribute("type", "radio");
+                    input.setAttribute("name", groupname);
+                    input.setAttribute("value", value);
+                    return input;
+                }
+                
+                var createSliderElement = function(paramname, value)
+                {
+                    var input = document.createElement("input");
+                    input.setAttribute("type", "range");
+                    input.setAttribute("id", paramname);
+                    input.setAttribute("min", "0.0");
+                    input.setAttribute("max", "1.0");
+                    input.setAttribute("step", "0.001");
+                    input.setAttribute("value", value);
+                    return input;
+                }
+                
+                var inputSelectHandler = function(event)
+                {
+                    var name = getDeviceName(event); 
+                    
+                    var client = new XMLHttpRequest();
+                    client.onreadystatechange = function ()
+                    {
+                        if (this.readyState == 4 && this.status == 200)
+                        {
+                            var deviceDoc = this.responseXML;
+                            if (deviceDoc != null)
+                            {
+                                var device = deviceDoc.documentElement;
+                                var ip = device.getAttribute("ip");
+                                var tbody = initparametertable(inputparametertable);
+                                var changeHandler = function(event)
+                                {
+                                    var source = event.currentTarget;
+                                    var client = new XMLHttpRequest();
+                                    var url = "SendOSC?address=" + ip + "&name=" + name + "&param=" + source.getAttribute("id") + "&value=" + source.value;
+                                    //alert(url);
+                                    client.open("GET", url);
+                                    client.send();
+                                }
+                                var xpath = "device/parameters/parameter";
+                                var nodes = deviceDoc.evaluate(xpath, deviceDoc, null, XPathResult.ANY_TYPE, null);
+                                var result;
+                                while ((result = nodes.iterateNext()))
+                                {
+                                    var tr = document.createElement("tr");
+                                    var td = document.createElement("td");
+                                    var paramname = result.getAttribute("name");
+                                    td.appendChild(createRadioButton("inputgroup", paramname));
+                                    td.appendChild(document.createTextNode(paramname));
+                                    tr.appendChild(td);
+                                    td = document.createElement("td");
+                                    var input = createSliderElement(paramname, result.getAttribute("value"));
+                                    input.addEventListener("input", changeHandler, false);
+                                    td.appendChild(input);
+                                    tr.appendChild(td);
+                                    tbody.appendChild(tr);
+                                }
+                            }
+                        } 
+                    }
+                    client.open("GET", "Device?type=input&name=" + name);
+                    client.send();
+                }
+                inputdevicelist.addEventListener("change", inputSelectHandler, false);
+                var outputSelectHandler = function(event)
+                {
+                    var name = getDeviceName(event); 
+                    
+                    var client = new XMLHttpRequest();
+                    client.onreadystatechange = function ()
+                    {
+                        if (this.readyState == 4 && this.status == 200)
+                        {
+                            var deviceDoc = this.responseXML;
+                            if (deviceDoc != null)
+                            {
+                                var xpath = "device/parameters/parameter";
+                                var nodes = deviceDoc.evaluate(xpath, deviceDoc, null, XPathResult.ANY_TYPE, null);
+                                var result;
+                                var tbody = initparametertable(outputparametertable);
+                                while ((result = nodes.iterateNext()))
+                                {
+                                    var tr = document.createElement("tr");
+                                    var td = document.createElement("td");
+                                    var paramname = result.getAttribute("name");
+                                    td.appendChild(createRadioButton("outputgroup", paramname));
+                                    td.appendChild(document.createTextNode(paramname));
+                                    tr.appendChild(td);
+                                    td = document.createElement("td");
+                                    var canvas = document.createElement("canvas");
+                                    canvas.setAttribute("id", paramname);
+                                    canvas.width = 512;
+                                    canvas.height = 20;
+                                    setCanvasValue(canvas, result.getAttribute("value"));
+                                    td.appendChild(canvas);
+//                                    var input = createSliderElement(paramname, result.getAttribute("value"));
+//                                    td.appendChild(input);
+                                    tr.appendChild(td);
+                                    tbody.appendChild(tr);
+                                }
+                            }
+                        } 
+                    }
+                    client.open("GET", "Device?type=output&name=" + name);
+                    client.send();
+                }
+                outputdevicelist.addEventListener("change", outputSelectHandler, false);
+                var devicerequest= function(type, devicelist)
+                {
+                    var client = new XMLHttpRequest();
+                    client.onreadystatechange = function ()
+                    {
+                        if (this.readyState == 4 && this.status == 200)
+                        {
+                            var xmlDoc = this.responseXML;
+                            // so far so good
+                            if (xmlDoc != null)
+                            {
+                                var devices = xmlDoc.getElementsByTagName("device");
+                                var i;
+                                for (i = 0; i < devices.length; i++)                    
+                                {
+                                    var name = devices[i].getAttribute("name");
+                                    addSelectOption(devicelist, name);
+                                }
+                            }
+                        } 
+                    }
+                    client.open("GET", "Devices?type=" + type);
+                    client.send();
+                }
+                devicerequest("input", inputdevicelist);
+                devicerequest("output", outputdevicelist);
+                var linksrequest= function()
+                {
+                    var client = new XMLHttpRequest();
+                    client.onreadystatechange = function ()
+                    {
+                        if (this.readyState == 4 && this.status == 200)
+                        {
+                            var xmlDoc = this.responseXML;
+                            // so far so good
+                            if (xmlDoc != null)
+                            {
+                                var links = xmlDoc.getElementsByTagName("link");
+                                var i;
+                                for (i = 0; i < links.length; i++)                    
+                                {
+                                    var link = links[i];
+                                    var outputdevice = link.getAttribute("outputdevice");
+                                    var outputparameter = link.getAttribute("outputparameter");
+                                    var inputdevice = link.getAttribute("inputdevice");
+                                    var inputparameter = link.getAttribute("inputparameter");
+                                    var value = linkValue(outputdevice, outputparameter, inputdevice, inputparameter);
+                                    var text = linkText(outputdevice, outputparameter, inputdevice, inputparameter);
+                                    addSelectOption(linkslist, text, value);
+                                }
+                            }
+                        } 
+                    }
+                    client.open("GET", "OSCLink");
+                    client.send();
+                }
+                linksrequest();
+            }
+        //]]>
+        </script>
+    </head>
+
+
+    <body>
+        <form name="datadirigent">
+            <table border="1" style="border-collapse:collapse;">
+                <tr>
+                    <th>Output</th>
+                    <th>Input</th>
+                    <th>Links</th>
+                </tr>
+                <tr>
+                    <td>
+                        <select id="outputdevices" size="10">
+                        </select>
+                    </td>
+                    <td>
+                        <select id="inputdevices" size="10">
+                        </select>
+                    </td>
+                    <td>
+                        <select id="links" size="10">
+                        </select>
+                    </td>
+                </tr>
+                <tr>
+                    <td><input id="deleteoutput" type="button" value="Delete"/></td>
+                    <td><input id="deleteinput" type="button" value="Delete"/></td>
+                    <td><input id="deletelink" type="button" value="Delete"/></td>
+                </tr>
+                <tr>
+                    <td valign="top">
+                        <table id="outputparameters">
+                        </table>
+                    </td>
+                    <td valign="top">
+                        <table id="inputparameters">
+                        </table>
+                    </td>
+                    <td><input id="createlink" type="button" value="Create"/></td>
+                </tr>
+            </table>
+            
+        </form>
+    </body>
+</html>
+
